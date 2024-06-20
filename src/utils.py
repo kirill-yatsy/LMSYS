@@ -18,7 +18,9 @@ from omegaconf import OmegaConf
 
 def get_default_parser():
     parser = ArgumentParser()
-    parser.add_argument("config", type=Path, help="Config file path")
+    parser.add_argument(
+        "config", type=Path, help="Config file path", default="config.yaml"
+    )
     parser.add_argument(
         "--backend",
         default=None,
@@ -51,8 +53,10 @@ def log_metrics(engine: Engine, tag: str) -> None:
     tag
         a string to add at the start of output.
     """
-    metrics_format = "{0} [{1}/{2}]: {3}".format(tag, engine.state.epoch, engine.state.iteration, engine.state.metrics)
-    engine.logger.info(metrics_format)
+    # metrics_format = "{0} [{1}/{2}]: {3}".format(
+    #     tag, engine.state.epoch, engine.state.iteration, engine.state.metrics
+    # )
+    # engine.logger.info(metrics_format)
 
 
 def resume_from(
@@ -168,6 +172,8 @@ def setup_handlers(
         filename_prefix=config.filename_prefix,
         n_saved=config.n_saved,
     )
+
+   
     trainer.add_event_handler(
         Events.ITERATION_COMPLETED(every=config.save_every_iters),
         ckpt_handler_train,
@@ -183,7 +189,8 @@ def setup_handlers(
         global_step_transform=global_step_transform,
         score_name="eval_accuracy",
         score_function=Checkpoint.get_default_score_fn("Accuracy"),
-    )
+    ) 
+
     evaluator.add_event_handler(Events.EPOCH_COMPLETED(every=1), ckpt_handler_eval)
 
     # early stopping

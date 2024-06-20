@@ -9,6 +9,8 @@ from torch.cuda.amp import autocast, GradScaler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DistributedSampler, Sampler
 
+from models import TransformerModel
+
 
 def setup_trainer(
     config: Any,
@@ -21,15 +23,19 @@ def setup_trainer(
     scaler = GradScaler(enabled=config.use_amp)
 
     def train_function(engine: Union[Engine, DeterministicEngine], batch: Any):
-        input_ids = batch["input_ids"].to(device, non_blocking=True, dtype=torch.long)
-        attention_mask = batch["attention_mask"].to(device, non_blocking=True, dtype=torch.long)
-        token_type_ids = batch["token_type_ids"].to(device, non_blocking=True, dtype=torch.long)
-        labels = batch["label"].view(-1, 1).to(device, non_blocking=True, dtype=torch.float)
+        # input_ids = batch["input_ids"].to(device, non_blocking=True, dtype=torch.long)
+        # attention_mask = batch["attention_mask"].to(device, non_blocking=True, dtype=torch.long)
+        # token_type_ids = batch["token_type_ids"].to(device, non_blocking=True, dtype=torch.long)
+
+        left = batch["left"]
+        right = batch["right"]
+        # labels = batch["label"].to(device, non_blocking=True, dtype=torch.float) 
+        labels = torch.nn.functional.one_hot(batch["label"], num_classes=config.num_classes).to(device, non_blocking=True, dtype=torch.float)
 
         model.train()
 
         with autocast(enabled=config.use_amp):
-            y_pred = model(input_ids, attention_mask, token_type_ids)
+            y_pred = model(left, right)
             loss = loss_fn(y_pred, labels)
 
         optimizer.zero_grad()
@@ -54,21 +60,17 @@ def setup_trainer(
 
 def setup_evaluator(
     config: Any,
-    model: nn.Module,
+    model: TransformerModel,
     metrics: Dict[str, Metric],
     device: Union[str, torch.device],
 ):
     @torch.no_grad()
     def evalutate_function(engine: Engine, batch: Any):
-        model.eval()
-
-        input_ids = batch["input_ids"].to(device, non_blocking=True, dtype=torch.long)
-        attention_mask = batch["attention_mask"].to(device, non_blocking=True, dtype=torch.long)
-        token_type_ids = batch["token_type_ids"].to(device, non_blocking=True, dtype=torch.long)
-        labels = batch["label"].view(-1, 1).to(device, non_blocking=True, dtype=torch.float)
-
+        model.eval() 
+        # labels = batch["label"].view(-1, 1).to(device, non_blocking=True, dtype=torch.float)
+        labels = torch.nn.functional.one_hot(batch["label"], num_classes=config.num_classes).to(device, non_blocking=True, dtype=torch.float)
         with autocast(enabled=config.use_amp):
-            output = model(input_ids, attention_mask, token_type_ids)
+            output = model(batch["left"], batch["right"])
 
         return output, labels
 

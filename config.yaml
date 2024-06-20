@@ -1,26 +1,28 @@
 seed: 777 # random seed
 data_path: ./ # input data path
-batch_size: 32 # train batch size
+batch_size: 4 # train batch size
 eval_batch_size: 32 # evaluation batch size
 num_workers: 4 # number of subprocesses to use for data loading
-max_epochs: 20 # number of maximum epochs
-use_amp: false # use AMP (Automatic Mixed Precision)
+max_epochs: 40 # number of maximum epochs
+use_amp: true # use AMP (Automatic Mixed Precision)
 debug: false
 train_epoch_length: null
 eval_epoch_length: null
 filename_prefix: training
-n_saved: 2
-save_every_iters: 1000
-patience: 3
+n_saved: 2                                                                         
+save_every_iters: 300
+patience: 30
 output_dir: ./logs
 log_every_iters: 10
-model: bert-base-uncased # model for text classification
+model: microsoft/Phi-3-mini-4k-instruct #microsoft/deberta-v3-base # microsoft/deberta-v3-xsmall # model for text classification
 model_dir: /tmp/model # path of model directory
 tokenizer_dir: /tmp/tokenizer # path of directory containing tokenizer
-num_classes: 1 # number of classes
+num_classes: 3 # number of classes
 drop_out: .3 # drop out rate
 n_fc: 768 # number of fully-connected layers
 weight_decay: 0.01 # parameter for weight decay, default, 1e-4.
 num_warmup_epochs: 0 # number of warm-up epochs before learning rate decay
-max_length: 256 # maximum length of texts
-lr: 0.00005
+max_length: 512 # maximum length of texts
+lr: 0.000001 #0.00005
+device: cuda # device 
+checkpoint_fp: 

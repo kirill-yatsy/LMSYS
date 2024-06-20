@@ -1,7 +1,7 @@
 import os
 from pprint import pformat
 from typing import Any
-
+import sys
 import ignite.distributed as idist
 from data import setup_data
 from ignite.engine import Events
@@ -14,6 +14,25 @@ from trainers import setup_evaluator, setup_trainer
 from utils import *
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"  # remove tokenizer paralleism warning
+
+from ignite.contrib.handlers.tqdm_logger import ProgressBar
+
+class ProgressBarCustom(ProgressBar):
+    """To force tqdm to overwrite previous line"""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        from tqdm import tqdm as tqdm_base
+
+        def tqdm_custom(*args, **kwargs):
+            if hasattr(tqdm_base, '_instances'):
+                for instance in list(tqdm_base._instances):
+                    tqdm_base._decr_instances(instance)
+            return tqdm_base(*args, **kwargs)
+
+        self.pbar_cls = tqdm_custom
+
+
 
 
 def run(local_rank: int, config: Any):
@@ -46,7 +65,9 @@ def run(local_rank: int, config: Any):
     )
 
     config.lr *= idist.get_world_size()
-    optimizer = idist.auto_optim(optim.AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay))
+    optimizer = idist.auto_optim(
+        optim.AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
+    )
     loss_fn = nn.BCEWithLogitsLoss().to(device=device)
 
     le = config.num_iters_per_epoch
@@ -55,16 +76,20 @@ def run(local_rank: int, config: Any):
         (le * config.num_warmup_epochs, config.lr),
         (le * config.max_epochs, 0.0),
     ]
-    lr_scheduler = PiecewiseLinear(optimizer, param_name="lr", milestones_values=milestones_values)
+    lr_scheduler = PiecewiseLinear(
+        optimizer, param_name="lr", milestones_values=milestones_values
+    )
 
     # setup metrics to attach to evaluator
     metrics = {
-        "Accuracy": Accuracy(output_transform=thresholded_output_transform),
+        "Accuracy": Accuracy(output_transform=thresholded_output_transform, is_multilabel=True),
         "Loss": Loss(loss_fn),
     }
 
     # trainer and evaluator
-    trainer = setup_trainer(config, model, optimizer, loss_fn, device, dataloader_train.sampler)
+    trainer = setup_trainer(
+        config, model, optimizer, loss_fn, device, dataloader_train.sampler
+    )
     evaluator = setup_evaluator(config, model, metrics, device)
 
     # setup engines logger with python logging
@@ -83,7 +108,15 @@ def run(local_rank: int, config: Any):
         "lr_scheduler": lr_scheduler,
     }
     to_save_eval = {"model": model}
-    ckpt_handler_train, ckpt_handler_eval = setup_handlers(trainer, evaluator, config, to_save_train, to_save_eval)
+    ckpt_handler_train, ckpt_handler_eval = setup_handlers(
+        trainer, evaluator, config, to_save_train, to_save_eval
+    )
+
+    checkpoint_fp = config.checkpoint_fp
+    if checkpoint_fp:
+        ckpt_handler_train.load_objects(to_load=to_save_train, checkpoint=config.checkpoint_fp)
+        # ckpt_handler_eval.load_objects(to_load=to_save_train, checkpoint=config.checkpoint_ep)
+        # Checkpoint.load_objects(to_load=to_save_train, checkpoint=checkpoint_fp)
 
     # experiment tracking
     if rank == 0:
@@ -97,6 +130,9 @@ def run(local_rank: int, config: Any):
         log_metrics,
         tag="train",
     )
+
+    ProgressBarCustom(persist=False, desc="Training").attach(trainer)
+    ProgressBarCustom(persist=False, desc="Validation").attach(evaluator)
 
     # run evaluation at every training epoch end
     # with shortcut `on` decorator API and
@@ -138,10 +174,12 @@ def run(local_rank: int, config: Any):
 
 # main entrypoint
 def main():
+
     config = setup_config()
     with idist.Parallel(config.backend) as p:
         p.run(run, config=config)
 
 
 if __name__ == "__main__":
+    sys.argv = ["src/main.py", "config.yaml"]
     main()
