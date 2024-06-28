@@ -2,11 +2,11 @@ import os
 from pprint import pformat
 from typing import Any
 import sys
-import ignite.distributed as idist
+import ignite.distributed as idist 
 from data import setup_data
 from ignite.engine import Events
 from ignite.handlers import PiecewiseLinear
-from ignite.metrics import Accuracy, Loss
+from ignite.metrics import Accuracy, Loss, Fbeta, Precision, Recall
 from ignite.utils import manual_seed
 from models import TransformerModel
 from torch import nn, optim
@@ -83,6 +83,12 @@ def run(local_rank: int, config: Any):
     # setup metrics to attach to evaluator
     metrics = {
         "Accuracy": Accuracy(output_transform=thresholded_output_transform, is_multilabel=True),
+        "Precision": Precision(output_transform=thresholded_output_transform, is_multilabel=True ),
+        "Recall": Recall(output_transform=thresholded_output_transform, is_multilabel=True),
+        "Fbeta": Fbeta(beta=1.0, output_transform=thresholded_output_transform ),
+        "Average_Precision": Precision(average=True, output_transform=thresholded_output_transform, is_multilabel=True ),
+        "Average_Recall": Recall(average=True, output_transform=thresholded_output_transform, is_multilabel=True),
+        "Average_Fbeta": Fbeta(average=True, beta=1.0, output_transform=thresholded_output_transform ),
         "Loss": Loss(loss_fn),
     }
 
@@ -114,9 +120,7 @@ def run(local_rank: int, config: Any):
 
     checkpoint_fp = config.checkpoint_fp
     if checkpoint_fp:
-        ckpt_handler_train.load_objects(to_load=to_save_train, checkpoint=config.checkpoint_fp)
-        # ckpt_handler_eval.load_objects(to_load=to_save_train, checkpoint=config.checkpoint_ep)
-        # Checkpoint.load_objects(to_load=to_save_train, checkpoint=checkpoint_fp)
+        ckpt_handler_train.load_objects(to_load=to_save_train, checkpoint=config.checkpoint_fp) 
 
     # experiment tracking
     if rank == 0:
@@ -144,10 +148,11 @@ def run(local_rank: int, config: Any):
         evaluator.run(dataloader_eval, epoch_length=config.eval_epoch_length)
         log_metrics(evaluator, "eval")
 
+ 
     # let's try run evaluation first as a sanity check
-    @trainer.on(Events.STARTED)
-    def _():
-        evaluator.run(dataloader_eval, epoch_length=config.eval_epoch_length)
+    # @trainer.on(Events.STARTED)
+    # def _():
+    #     evaluator.run(dataloader_eval, epoch_length=config.eval_epoch_length)
 
     # setup if done. let's run the training
     trainer.run(

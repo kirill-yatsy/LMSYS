@@ -1,7 +1,7 @@
 seed: 777 # random seed
 data_path: ./ # input data path
 batch_size: 4 # train batch size
-eval_batch_size: 32 # evaluation batch size
+eval_batch_size: 64 # evaluation batch size
 num_workers: 4 # number of subprocesses to use for data loading
 max_epochs: 40 # number of maximum epochs
 use_amp: true # use AMP (Automatic Mixed Precision)
@@ -14,7 +14,7 @@ save_every_iters: 300
 patience: 30
 output_dir: ./logs
 log_every_iters: 10
-model: microsoft/Phi-3-mini-4k-instruct #microsoft/deberta-v3-base # microsoft/deberta-v3-xsmall # model for text classification
+model: llm-blender/PairRM-hf #microsoft/deberta-v3-base # microsoft/deberta-v3-xsmall # model for text classification
 model_dir: /tmp/model # path of model directory
 tokenizer_dir: /tmp/tokenizer # path of directory containing tokenizer
 num_classes: 3 # number of classes
@@ -25,4 +25,4 @@ num_warmup_epochs: 0 # number of warm-up epochs before learning rate decay
 max_length: 512 # maximum length of texts
 lr: 0.000001 #0.00005
 device: cuda # device 
-checkpoint_fp: 
+checkpoint_fp: logs/20240627-105942-backend-None-lr-1e-06/checkpoints/training_checkpoint_137100.pt

@@ -7,8 +7,6 @@ label_to_int = {
     "winner_model_b": 1,
     "tie": 2
 }
-
- 
         
 def get_dataset() -> tuple[pd.DataFrame, pd.DataFrame]:
     df = pd.read_csv("data/train_pairs.csv")
