@@ -12,8 +12,9 @@ from models import TransformerModel
 from torch import nn, optim
 from trainers import setup_evaluator, setup_trainer
 from utils import *
-
+from accelerate import Accelerator
 os.environ["TOKENIZERS_PARALLELISM"] = "false"  # remove tokenizer paralleism warning
+import bitsandbytes as bnb
 
 from ignite.contrib.handlers.tqdm_logger import ProgressBar
 
@@ -36,6 +37,10 @@ class ProgressBarCustom(ProgressBar):
 
 
 def run(local_rank: int, config: Any):
+
+
+    accelerator = Accelerator( )
+
     # make a certain seed
     rank = idist.get_rank()
     manual_seed(config.seed + rank)
@@ -54,19 +59,15 @@ def run(local_rank: int, config: Any):
 
     # model, optimizer, loss function, device
     device = idist.device()
-    model = idist.auto_model(
-        TransformerModel(
-            config.model,
-            config.model_dir,
-            config.drop_out,
-            config.n_fc,
-            config.num_classes,
-        )
-    )
+    # model = idist.auto_model(
+        
+    # )
+    model = TransformerModel(config).cpu()
+    
 
     config.lr *= idist.get_world_size()
     optimizer = idist.auto_optim(
-        optim.AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
+        bnb.optim.Adam8bit(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
     )
     loss_fn = nn.BCEWithLogitsLoss().to(device=device)
 
@@ -79,6 +80,9 @@ def run(local_rank: int, config: Any):
     lr_scheduler = PiecewiseLinear(
         optimizer, param_name="lr", milestones_values=milestones_values
     )
+
+    model, optimizer, dataloader_train, lr_scheduler = accelerator.prepare(model, optimizer, dataloader_train, lr_scheduler)
+
 
     # setup metrics to attach to evaluator
     metrics = {
@@ -94,7 +98,7 @@ def run(local_rank: int, config: Any):
 
     # trainer and evaluator
     trainer = setup_trainer(
-        config, model, optimizer, loss_fn, device, dataloader_train.sampler
+        config, model, optimizer, loss_fn, device, dataloader_train.sampler, accelerator
     )
     evaluator = setup_evaluator(config, model, metrics, device)
 

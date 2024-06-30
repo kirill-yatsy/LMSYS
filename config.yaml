@@ -1,10 +1,10 @@
 seed: 777 # random seed
 data_path: ./ # input data path
-batch_size: 4 # train batch size
-eval_batch_size: 64 # evaluation batch size
+batch_size: 1 # train batch size
+eval_batch_size: 3 # evaluation batch size
 num_workers: 4 # number of subprocesses to use for data loading
 max_epochs: 40 # number of maximum epochs
-use_amp: true # use AMP (Automatic Mixed Precision)
+use_amp: false # use AMP (Automatic Mixed Precision)
 debug: false
 train_epoch_length: null
 eval_epoch_length: null
@@ -14,15 +14,19 @@ save_every_iters: 300
 patience: 30
 output_dir: ./logs
 log_every_iters: 10
-model: llm-blender/PairRM-hf #microsoft/deberta-v3-base # microsoft/deberta-v3-xsmall # model for text classification
+model: meta-llama/Meta-Llama-3-8B #microsoft/deberta-v3-base # microsoft/deberta-v3-xsmall # model for text classification
 model_dir: /tmp/model # path of model directory
 tokenizer_dir: /tmp/tokenizer # path of directory containing tokenizer
 num_classes: 3 # number of classes
-drop_out: .3 # drop out rate
+drop_out: .15 # drop out rate
 n_fc: 768 # number of fully-connected layers
 weight_decay: 0.01 # parameter for weight decay, default, 1e-4.
 num_warmup_epochs: 0 # number of warm-up epochs before learning rate decay
-max_length: 512 # maximum length of texts
-lr: 0.000001 #0.00005
-device: cuda # device 
-checkpoint_fp: logs/20240627-105942-backend-None-lr-1e-06/checkpoints/training_checkpoint_137100.pt
+max_length: 1024 # maximum length of texts
+lr: 0.00001 #0.00005
+device: cpu # device 
+lora_rank: 4
+lora_alpha: 8
+lora_modules: ['o_proj', 'v_proj']
+pad_token_id: 128001
+checkpoint_fp:

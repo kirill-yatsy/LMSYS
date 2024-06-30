@@ -8,6 +8,7 @@ from torch import nn
 from torch.cuda.amp import autocast, GradScaler
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DistributedSampler, Sampler
+from accelerate import Accelerator
 
 from models import TransformerModel
 
@@ -19,6 +20,7 @@ def setup_trainer(
     loss_fn: nn.Module,
     device: Union[str, torch.device],
     train_sampler: Sampler,
+    accelerator: Accelerator,
 ) -> Union[Engine, DeterministicEngine]:
     scaler = GradScaler(enabled=config.use_amp)
 
@@ -27,19 +29,20 @@ def setup_trainer(
         # attention_mask = batch["attention_mask"].to(device, non_blocking=True, dtype=torch.long)
         # token_type_ids = batch["token_type_ids"].to(device, non_blocking=True, dtype=torch.long)
 
-        left = batch["left"]
-        right = batch["right"]
+   
         # labels = batch["label"].to(device, non_blocking=True, dtype=torch.float) 
         labels = torch.nn.functional.one_hot(batch["label"], num_classes=config.num_classes).to(device, non_blocking=True, dtype=torch.float)
 
         model.train()
 
         with autocast(enabled=config.use_amp):
-            y_pred = model(left, right)
+            y_pred = model(batch )
             loss = loss_fn(y_pred, labels)
 
         optimizer.zero_grad()
-        scaler.scale(loss).backward()
+        # scaler.scale(loss).backward()
+
+        accelerator.backward(loss)
         scaler.step(optimizer)
         scaler.update()
 
@@ -70,7 +73,7 @@ def setup_evaluator(
         # labels = batch["label"].view(-1, 1).to(device, non_blocking=True, dtype=torch.float)
         labels = torch.nn.functional.one_hot(batch["label"], num_classes=config.num_classes).to(device, non_blocking=True, dtype=torch.float)
         with autocast(enabled=config.use_amp):
-            output = model(batch["left"], batch["right"])
+            output = model(batch )
 
         return output, labels
 

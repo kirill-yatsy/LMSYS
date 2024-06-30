@@ -7,47 +7,43 @@ from get_data_frame import get_dataset
 
 
 class TransformerDataset(torch.utils.data.Dataset):
-    def __init__(self, left, right, labels, tokenizer, max_length):
-        self.left = left
-        self.right = right
+    def __init__(self, both, labels, tokenizer, max_length): 
+        self.both = both
         self.labels = labels
         self.tokenizer = tokenizer
         self.max_length = max_length
 
     def get_encoded(self, text):
-        inputs = self.tokenizer.encode_plus(
-            text,
-            None,
+        inputs = self.tokenizer(
+            text, 
+            padding='max_length', 
             add_special_tokens=True,
             max_length=self.max_length,
             truncation=True,
         )
 
         ids = inputs["input_ids"]
-        token_type_ids = inputs["token_type_ids"]
+        # token_type_ids = inputs["token_type_ids"]
         mask = inputs["attention_mask"]
-        padding_lenght = self.max_length - len(ids)
+        # padding_lenght = self.max_length - len(ids)
 
-        ids = ids + ([0] * padding_lenght)
-        mask = mask + ([0] * padding_lenght)
-        token_type_ids = token_type_ids + ([0] * padding_lenght)
+        # ids = ids + ([0] * padding_lenght)
+        # mask = mask + ([0] * padding_lenght)
+        # token_type_ids = token_type_ids + ([0] * padding_lenght)
 
         return {
             "input_ids": torch.tensor(ids, dtype=torch.long) ,
             "attention_mask": torch.tensor(mask, dtype=torch.long),
-            "token_type_ids": torch.tensor(token_type_ids, dtype=torch.long),
+            # "token_type_ids": torch.tensor(token_type_ids, dtype=torch.long),
         }
 
-    def __getitem__(self, idx):
-        left = self.left[idx]
-        right = self.right[idx]
+    def __getitem__(self, idx): 
         label = torch.tensor(self.labels[idx], dtype=torch.long)
-    
-        return {
-            "left": self.get_encoded(left),
-            "right": self.get_encoded(right),
-            "label": label,
-        }
+        encoded = self.get_encoded(self.both[idx])
+        # add lables to dict encoded 
+        encoded["label"] = label
+
+        return encoded
 
     def __len__(self):
         return len(self.labels)
@@ -57,27 +53,27 @@ def setup_data(config):
     df = pd.read_csv("data/train.csv")
 
     dataset_train, dataset_eval = get_dataset()
-    tokenizer = AutoTokenizer.from_pretrained(
-        config.model, cache_dir=config.tokenizer_dir, do_lower_case=True 
-    )
+    tokenizer = AutoTokenizer.from_pretrained(config.model, do_lower_case=True)
 
-    train_left_texts, train_right_texts, train_labels = (
-        dataset_train["left"],
-        dataset_train["right"],
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = 'right'
+    tokenizer.add_eos_token = True
+
+    train_both_texts, train_labels = ( 
+        dataset_train["both"],
         dataset_train["label"],
     )
-    test_left_texts, test_right_texts, test_labels = (
-        dataset_eval["left"],
-        dataset_eval["right"],
+    test_both_texts, test_labels = (
+        dataset_eval["both"], 
         dataset_eval["label"],
     )
     # train_texts, train_labels = dataset_train["text"], dataset_train["label"]
     # test_texts, test_labels = dataset_eval["text"], dataset_eval["label"]
     dataset_train = TransformerDataset(
-        train_left_texts.to_list(), train_right_texts.to_list(), train_labels.to_list(), tokenizer, config.max_length
+        train_both_texts.to_list(),   train_labels.to_list(), tokenizer, config.max_length
     )
     dataset_eval = TransformerDataset(
-        test_left_texts.to_list(), test_right_texts.to_list(), test_labels.to_list(), tokenizer, config.max_length
+        test_both_texts.to_list(),  test_labels.to_list(), tokenizer, config.max_length
     )
     # dataloader_train = torch.utils.data.DataLoader(
     #     dataset_train, batch_size=32, shuffle=True, num_workers=4
