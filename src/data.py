@@ -7,9 +7,8 @@ from get_data_frame import get_dataset
 
 
 class TransformerDataset(torch.utils.data.Dataset):
-    def __init__(self, both, labels, tokenizer, max_length): 
-        self.both = both
-        self.labels = labels
+    def __init__(self, df, tokenizer, max_length): 
+        self.df = df 
         self.tokenizer = tokenizer
         self.max_length = max_length
 
@@ -38,19 +37,36 @@ class TransformerDataset(torch.utils.data.Dataset):
         }
 
     def __getitem__(self, idx): 
-        label = torch.tensor(self.labels[idx], dtype=torch.long)
-        encoded = self.get_encoded(self.both[idx])
+        row = self.df.iloc[idx]
+        prompt = row["prompt"]
+        response_a = row["response_a"]
+        response_b = row["response_b"]
+        label = row["label"] # 0 for a, 1 for b, 2 for equal
+        
+        # if random < 0.5, response_a is first model otherwise response_b
+        random = torch.rand(1).item()
+        text = ""
+
+        if random < 0.5:
+            text = f"Prompt: {prompt}\n\n\n\n Model A: {response_a} \n\n\n\n  Model B: {response_b}" 
+        else:
+            text = f"Prompt: {prompt}\n\n\n\n Model A: {response_b} \n\n\n\n  Model B: {response_a}"
+            if label != 2:
+                label = 1 if label == 0 else 0
+
+        label = torch.tensor(label, dtype=torch.long)
+        encoded = self.get_encoded(text)
         # add lables to dict encoded 
         encoded["label"] = label
 
         return encoded
 
     def __len__(self):
-        return len(self.labels)
+        return len(self.df)
 
 
 def setup_data(config):
-    df = pd.read_csv("data/train.csv")
+    # df = pd.read_csv("data/train.csv")
 
     dataset_train, dataset_eval = get_dataset()
     tokenizer = AutoTokenizer.from_pretrained(config.model, do_lower_case=True)
@@ -58,22 +74,14 @@ def setup_data(config):
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = 'right'
     tokenizer.add_eos_token = True
-
-    train_both_texts, train_labels = ( 
-        dataset_train["both"],
-        dataset_train["label"],
-    )
-    test_both_texts, test_labels = (
-        dataset_eval["both"], 
-        dataset_eval["label"],
-    )
+ 
     # train_texts, train_labels = dataset_train["text"], dataset_train["label"]
     # test_texts, test_labels = dataset_eval["text"], dataset_eval["label"]
     dataset_train = TransformerDataset(
-        train_both_texts.to_list(),   train_labels.to_list(), tokenizer, config.max_length
+        dataset_train, tokenizer, config.max_length
     )
     dataset_eval = TransformerDataset(
-        test_both_texts.to_list(),  test_labels.to_list(), tokenizer, config.max_length
+        dataset_eval, tokenizer, config.max_length
     )
     # dataloader_train = torch.utils.data.DataLoader(
     #     dataset_train, batch_size=32, shuffle=True, num_workers=4

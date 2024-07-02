@@ -10,9 +10,14 @@ from peft import get_peft_config, PeftModel, PeftConfig, get_peft_model, LoraCon
 double_quant_config = BitsAndBytesConfig(
     load_in_4bit=True,
     bnb_4bit_quant_type="nf4",
-    bnb_4bit_use_double_quant=True,
+    bnb_4bit_use_double_quant=False,
     bnb_4bit_compute_dtype=torch.bfloat16,
 )
+
+# double_quant_config =  BitsAndBytesConfig(
+#     load_in_8bit=True,
+#     bnb_8bit_compute_dtype=torch.float16,
+#     bnb_8bit_use_double_quant=False)
 # double_quant_config = BitsAndBytesConfig(load_in_8bit=True , bnb_8bit_use_double_quant=True)
 
 
@@ -60,23 +65,7 @@ class TransformerModel(nn.Module):
             nn.Linear(self.backbone.config.hidden_size, config.num_classes),
         )
 
-    def forward(self, input):
-        # l_pooled_output = self.backbone(
-        #     left["input_ids"].cuda(),
-        #     attention_mask=left["attention_mask"].cuda(),
-        #     # token_type_ids=left["token_type_ids"].cuda(),
-        #     return_dict=False,
-        # )
-
-         
-
-        # r_pooled_output = self.backbone(
-        #     right["input_ids"].cuda(),
-        #     attention_mask=right["attention_mask"].cuda(),
-        #     # token_type_ids=right["token_type_ids"].cuda(),
-        #     return_dict=False,
-        # )
-
+    def forward(self, input): 
         output = self.backbone(
             input["input_ids"].cuda(),
             attention_mask=input["attention_mask"].cuda(), 
