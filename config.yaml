@@ -14,7 +14,7 @@ save_every_iters: 300
 patience: 30
 output_dir: ./logs
 log_every_iters: 10
-model: meta-llama/Meta-Llama-3-8B #microsoft/deberta-v3-base # microsoft/deberta-v3-xsmall # model for text classification
+model: WeOpenML/PandaLM-7B-v1 #microsoft/deberta-v3-base # microsoft/deberta-v3-xsmall # model for text classification
 model_dir: /tmp/model # path of model directory
 tokenizer_dir: /tmp/tokenizer # path of directory containing tokenizer
 num_classes: 3 # number of classes
@@ -29,4 +29,4 @@ lora_rank: 4
 lora_alpha: 8
 lora_modules: ['o_proj', 'v_proj']
 pad_token_id: 128001
-checkpoint_fp: logs/20240702-013455-backend-None-lr-1e-05/checkpoints/training_checkpoint_256800.pt
+checkpoint_fp: 

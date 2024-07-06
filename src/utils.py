@@ -14,6 +14,7 @@ from ignite.handlers import Checkpoint, DiskSaver, global_step_from_engine
 from ignite.handlers.early_stopping import EarlyStopping
 from ignite.utils import setup_logger
 from omegaconf import OmegaConf
+from transformers import AutoTokenizer
 
 
 def get_default_parser():
@@ -205,3 +206,38 @@ def setup_handlers(
 def thresholded_output_transform(output):
     y_pred, y = output
     return torch.round(torch.sigmoid(y_pred)), y
+
+
+def build_prompt(instruction, input, resp1, resp2, result=None, explain=None, ref=None):
+    rsp = f"### Response 1:\n{resp1}\n\n### Response 2:\n{resp2}"
+
+    if input:
+        input_sequence = f"Below are two responses for a given task. The task is defined by the Instruction with an Input that provides further context. Evaluate the responses and generate a reference answer for the task.\n\n### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n{rsp}\n\n### Evaluation:\n"
+    else:
+        input_sequence = f"Below are two responses for a given task. The task is defined by the Instruction. Evaluate the responses and generate a reference answer for the task.\n\n### Instruction:\n{instruction}\n\n{rsp}\n\n### Evaluation:\n"
+
+    if result:
+        output_sequence = f"{result}\n\n### Reason: {explain}\n\n### Reference: {ref}\n"
+        return input_sequence, output_sequence
+    else:
+        return input_sequence
+    
+
+def get_tokenizer(model_name: str):
+    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
+ 
+    DEFAULT_EOS_TOKEN = "</s>"
+    DEFAULT_BOS_TOKEN = "</s>"
+    DEFAULT_UNK_TOKEN = "</s>"
+    assert tokenizer.pad_token == '[PAD]'
+    tokenizer.add_special_tokens(
+        {
+            "eos_token": DEFAULT_EOS_TOKEN,
+            "bos_token": DEFAULT_BOS_TOKEN,
+            "unk_token": DEFAULT_UNK_TOKEN,
+        }
+    )
+
+    tokenizer.pad_token_id = 0  # unk
+
+    return tokenizer
