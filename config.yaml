@@ -1,7 +1,7 @@
 seed: 777 # random seed
 data_path: ./ # input data path
 batch_size: 1 # train batch size
-eval_batch_size: 2 # evaluation batch size
+eval_batch_size: 1 # evaluation batch size
 num_workers: 4 # number of subprocesses to use for data loading
 max_epochs: 6 # number of maximum epochs
 use_amp: false # use AMP (Automatic Mixed Precision)
@@ -27,6 +27,6 @@ lr: 0.00001 #0.00005
 device: cuda # device 
 lora_rank: 4
 lora_alpha: 8
-lora_modules: ['o_proj', 'v_proj']
+lora_modules: ['q_proj','k_proj','o_proj', 'v_proj', 'down_proj', 'lm_head']
 pad_token_id: 128001
 checkpoint_fp: 

@@ -14,8 +14,11 @@ from ignite.handlers import Checkpoint, DiskSaver, global_step_from_engine
 from ignite.handlers.early_stopping import EarlyStopping
 from ignite.utils import setup_logger
 from omegaconf import OmegaConf
+from tqdm import tqdm
 from transformers import AutoTokenizer
 
+# from data import setup_data
+import pandas as pd
 
 def get_default_parser():
     parser = ArgumentParser()
@@ -208,19 +211,12 @@ def thresholded_output_transform(output):
     return torch.round(torch.sigmoid(y_pred)), y
 
 
-def build_prompt(instruction, input, resp1, resp2, result=None, explain=None, ref=None):
+def build_prompt(instruction, input, resp1, resp2):
     rsp = f"### Response 1:\n{resp1}\n\n### Response 2:\n{resp2}"
 
-    if input:
-        input_sequence = f"Below are two responses for a given task. The task is defined by the Instruction with an Input that provides further context. Evaluate the responses and generate a reference answer for the task.\n\n### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n{rsp}\n\n### Evaluation:\n"
-    else:
-        input_sequence = f"Below are two responses for a given task. The task is defined by the Instruction. Evaluate the responses and generate a reference answer for the task.\n\n### Instruction:\n{instruction}\n\n{rsp}\n\n### Evaluation:\n"
+    input_sequence = f"Below are two responses for a given task. The task is defined by the Instruction with an Input that provides further context. Evaluate the responses and generate a reference answer for the task.\n\n### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n{rsp}\n\n### Evaluation:\n"
 
-    if result:
-        output_sequence = f"{result}\n\n### Reason: {explain}\n\n### Reference: {ref}\n"
-        return input_sequence, output_sequence
-    else:
-        return input_sequence
+    return input_sequence
     
 
 def get_tokenizer(model_name: str):
@@ -241,3 +237,84 @@ def get_tokenizer(model_name: str):
     tokenizer.pad_token_id = 0  # unk
 
     return tokenizer
+
+
+def build_prompt2(tokenizer, max_tokens, instruction, input, resp1, resp2):
+    def truncate_text(text, max_tokens, tokenizer):
+        tokens = tokenizer.encode(text, add_special_tokens=False, truncation=True, max_length=max_tokens)
+  
+        return tokenizer.decode(tokens, skip_special_tokens=True)
+
+    # validate input, resp1, resp2 on nan
+    if pd.isna(input):
+        input = ""
+    if pd.isna(resp1):
+        resp1 = ""
+    if pd.isna(resp2):
+        resp2 = ""
+
+    rsp = f"### Response 1:\n{resp1}\n\n### Response 2:\n{resp2}"
+
+    input_sequence = build_prompt(instruction, "", "", "")
+     
+    # Calculate remaining tokens after reserving space for non-truncatable parts
+    input_tokens = tokenizer.encode(input_sequence)
+ 
+    reserved_tokens = len(input_tokens)
+    remaining_tokens = max_tokens - reserved_tokens
+
+    # Calculate the number of tokens that can be allocated to input, resp1, and resp2
+    input_tokens_count = len(tokenizer.encode(input))
+    resp1_tokens_count = len(tokenizer.encode(resp1))
+    resp2_tokens_count = len(tokenizer.encode(resp2))
+
+    final_input = input
+    final_resp1 = resp1
+    final_resp2 = resp2
+
+    tokenized_prompt = tokenizer.encode(build_prompt(instruction, final_input, final_resp1, final_resp2))
+    total_tokens_count = len(tokenized_prompt)
+    
+    alpha = 0.0
+
+    while (len(tokenized_prompt) > max_tokens):
+        input_ratio = input_tokens_count / total_tokens_count - alpha
+        resp1_ratio = resp1_tokens_count / total_tokens_count - alpha
+        resp2_ratio = resp2_tokens_count / total_tokens_count - alpha
+
+        max_input_tokens = int(remaining_tokens * input_ratio)
+        max_resp1_tokens = int(remaining_tokens * resp1_ratio)
+        max_resp2_tokens = int(remaining_tokens * resp2_ratio)
+
+        final_input = truncate_text(input, max_input_tokens, tokenizer)
+        final_resp1 = truncate_text(resp1, max_resp1_tokens, tokenizer)
+        final_resp2 = truncate_text(resp2, max_resp2_tokens, tokenizer)
+        tokenized_prompt = tokenizer.encode(build_prompt(instruction, final_input, final_resp1, final_resp2))
+        alpha += 0.1
+
+        if alpha > 1.0:
+            print("alpha > 1.0. Breaking loop.")
+            break
+
+    return build_prompt(instruction, final_input, final_resp1, final_resp2)
+        
+    
+
+# if __name__ == "__main__":
+#     from omegaconf import OmegaConf
+
+#     config = OmegaConf.load("config.yaml")
+#     dataloader_train, dataloader_eval = setup_data(config)
+#     tokenizer = get_tokenizer(config.model)
+#     decodedl = []
+#     # show progress bar
+#     for i, batch in tqdm(enumerate(dataloader_train)):
+#         decoded = tokenizer.decode(batch["input_ids"].squeeze())
+#         decodedl.append(decoded)
+    
+#     # create df from decoded
+#     df = pd.DataFrame(decodedl)
+
+#     df.to_csv("./decoded.csv", index=False)
+         
+ 

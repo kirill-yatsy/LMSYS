@@ -5,7 +5,7 @@ import sys
 import ignite.distributed as idist 
 from data import setup_data
 from ignite.engine import Events
-from ignite.handlers import PiecewiseLinear
+from ignite.handlers import CosineAnnealingScheduler
 from ignite.metrics import Accuracy, Loss, Fbeta, Precision, Recall
 from ignite.utils import manual_seed
 from models import TransformerModel
@@ -13,6 +13,7 @@ from torch import nn, optim
 from trainers import setup_evaluator, setup_trainer
 from utils import *
 from accelerate import Accelerator
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"  # remove tokenizer paralleism warning
 import bitsandbytes as bnb
 
@@ -62,7 +63,7 @@ def run(local_rank: int, config: Any):
     # model = idist.auto_model(
         
     # )
-    model = TransformerModel(config).cpu()
+    model = TransformerModel(config) 
     
 
     config.lr *= idist.get_world_size()
@@ -72,13 +73,9 @@ def run(local_rank: int, config: Any):
     loss_fn = nn.BCEWithLogitsLoss().to(device=device)
 
     le = config.num_iters_per_epoch
-    milestones_values = [
-        (0, 0.0),
-        (le * config.num_warmup_epochs, config.lr),
-        (le * config.max_epochs, 0.0),
-    ]
-    lr_scheduler = PiecewiseLinear(
-        optimizer, param_name="lr", milestones_values=milestones_values
+    
+    lr_scheduler = CosineAnnealingScheduler(
+        optimizer, "lr", config.lr, config.lr * 10**-4, len(dataloader_train) * config.max_epochs
     )
 
     model, optimizer, dataloader_train, lr_scheduler = accelerator.prepare(model, optimizer, dataloader_train, lr_scheduler)

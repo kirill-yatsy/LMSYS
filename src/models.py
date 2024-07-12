@@ -3,7 +3,7 @@ import torch.nn as nn
 from transformers import AutoModel
 from llm_blender.pair_ranker.pairrm import DebertaV2PairRM
 from transformers import BitsAndBytesConfig
-from transformers import AutoTokenizer, LlamaModel, LlamaForSequenceClassification, AutoModelForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForCausalLM, LlamaForSequenceClassification, AutoModelForSequenceClassification
 from peft import (
     get_peft_config,
     PeftModel,
@@ -43,9 +43,9 @@ class TransformerModel(nn.Module):
             target_modules=config.lora_modules,
         )
 
-        self.backbone = AutoModelForSequenceClassification.from_pretrained(
+        self.backbone = AutoModelForCausalLM.from_pretrained(
             config.model,
-            num_labels=config.num_classes,
+            # num_labels=config.num_classes,
             quantization_config=double_quant_config,
             device_map="auto",
             torch_dtype=torch.bfloat16,
@@ -53,14 +53,7 @@ class TransformerModel(nn.Module):
 
         self.backbone.config.pad_token_id = 0  # unk
         self.backbone.config.bos_token_id = 1
-        self.backbone.config.eos_token_id = 2
-
-        self.backbone.score = nn.Identity()
-
-        self.backbone.config.pretraining_tp = 1
-
-        # Assign Padding TOKEN
-        # self.backbone.config.pad_token_id = config.pad_token_id
+        self.backbone.config.eos_token_id = 2 
 
         self.backbone = get_peft_model(self.backbone, lora_config)
         # Trainable Parameters
@@ -72,7 +65,7 @@ class TransformerModel(nn.Module):
         self.head_layer = nn.Sequential(
             nn.Dropout(config.drop_out),
             nn.Linear(
-                self.backbone.config.hidden_size, self.backbone.config.hidden_size
+                self.backbone.config.vocab_size, self.backbone.config.hidden_size
             ),
             nn.Tanh(),
             nn.Dropout(config.drop_out),
@@ -82,12 +75,11 @@ class TransformerModel(nn.Module):
     def forward(self, input):
         output = self.backbone(
             input["input_ids"].cuda(),
-            attention_mask=input["attention_mask"].cuda(),
-            return_dict=False,
+            attention_mask=input["attention_mask"].cuda()
         )
 
         # embeds = torch.cat((l_pooled_output[0], r_pooled_output[0]), dim=-1)
-
-        output = self.head_layer(output[0].type(torch.float32))
+        output = output.logits.mean(dim=1)
+        output = self.head_layer(output.type(torch.float32))
 
         return output

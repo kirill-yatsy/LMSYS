@@ -163,4 +163,4 @@ cython_debug/
 data/
 imdb/
 logs/
-notebooks/model
+notebooks/model 
